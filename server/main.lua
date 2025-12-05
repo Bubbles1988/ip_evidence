@@ -261,7 +261,7 @@ RegisterNetEvent('ib_evidence:server:ScanArea', function(coords)
     local hasKit = exports['rsg-inventory']:HasItem(src, Config.ForensicsKitItem, 1)
     if not hasKit then
         TriggerClientEvent('ox_lib:notify', src, {
-            description = 'You need a forensics kit.',
+            description = 'Du brauchst die passende Ausrüstung.',
             type        = 'error'
         })
         return
@@ -275,19 +275,19 @@ RegisterNetEvent('ib_evidence:server:ScanArea', function(coords)
     for id, ev in pairs(EvidenceMarkers) do
         local dist = #(v - ev.coords)
         if dist <= r then
-            local label = 'Evidence'
+            local label = 'Beweise'
 
             if ev.type == 'casing' then
                 local meta = ev.meta or {}
                 if meta.weapon_label then
                     label = meta.weapon_label .. ' casing'
                 else
-                    label = 'Casing'
+                    label = 'Hülse'
                 end
             elseif ev.type == 'blood' then
-                label = 'Blood'
+                label = 'Blut'
             elseif ev.type == 'fingerprint' then
-                label = 'Fingerprint'
+                label = 'Fingerabdruck'
             end
 
             results[#results+1] = {
@@ -320,7 +320,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
     local hasBag = exports['rsg-inventory']:HasItem(src, Config.EvidenceBagItem, 1)
     if not hasBag then
         TriggerClientEvent('ox_lib:notify', src, {
-            description = 'You need an evidence bag.',
+            description = 'Ich brauche eine Tüte.',
             type        = 'error'
         })
         return
@@ -329,7 +329,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
     local ev = EvidenceMarkers[markerId]
     if not ev then
         TriggerClientEvent('ox_lib:notify', src, {
-            description = 'Evidence not found.',
+            description = 'Beweise nicht gefunden.',
             type        = 'error'
         })
         return
@@ -338,7 +338,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
     local itemName = Config.EvidenceItems[ev.type]
     if not itemName then
         TriggerClientEvent('ox_lib:notify', src, {
-            description = 'Unknown evidence type.',
+            description = 'Unbekannte Beweise.',
             type        = 'error'
         })
         debugPrint(('Evidence #%s has unknown type %s'):format(tostring(markerId), tostring(ev.type)))
@@ -377,11 +377,11 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
     -- Human-readable base label for the item
     local baseLabel
     if ev.type == 'casing' then
-        baseLabel = (weaponLabel and (weaponLabel .. ' casing')) or 'Casing'
+        baseLabel = (weaponLabel and (weaponLabel .. 'casing')) or 'Patrone'
     elseif ev.type == 'blood' then
-        baseLabel = 'Blood evidence'
+        baseLabel = 'Blut'
     elseif ev.type == 'fingerprint' then
-        baseLabel = 'Fingerprint trace'
+        baseLabel = 'Fingerabdruck'
     else
         baseLabel = ev.type
     end
@@ -430,7 +430,7 @@ RegisterNetEvent('ib_evidence:server:RegisterFingerprintCard', function(targetId
     local hasKit = exports['rsg-inventory']:HasItem(src, Config.FingerprintKitItem, 1)
     if not hasKit then
         TriggerClientEvent('ox_lib:notify', src, {
-            description = 'You need a fingerprint kit.',
+            description = 'Ich brauche Tinte und Papier.',
             type        = 'error'
         })
         return
@@ -471,7 +471,7 @@ RegisterNetEvent('ib_evidence:server:RegisterFingerprintCard', function(targetId
     exports['rsg-inventory']:AddItem(src, Config.FingerprintCardItem, 1, nil, info)
 
     TriggerClientEvent('ox_lib:notify', src, {
-        description = ('Fingerprint taken: %s'):format(fpCode),
+        description = ('Fingerabdruck erhalten: %s'):format(fpCode),
         type        = 'success'
     })
 end)
@@ -507,7 +507,7 @@ RegisterNetEvent('ib_evidence:server:CreateCaseFolder', function(title)
     exports['rsg-inventory']:AddItem(src, Config.CrimeFolderItem, 1, nil, info)
 
     TriggerClientEvent('ox_lib:notify', src, {
-        description = ('New case folder created: %s'):format(info.title),
+        description = ('Akte erstellt: %s'):format(info.title),
         type        = 'success'
     })
 end)
@@ -602,7 +602,7 @@ RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evide
     exports['rsg-inventory']:AddItem(src, Config.CrimeFolderItem, 1, nil, folderInfo)
 
     TriggerClientEvent('ox_lib:notify', src, {
-        description = ('Evidence attached to case %s'):format(folderInfo.case_id or ''),
+        description = ('Beweise beigefügt %s'):format(folderInfo.case_id or ''),
         type        = 'success'
     })
 end)
@@ -629,7 +629,7 @@ RegisterNetEvent('ib_evidence:server:SetCaseNotes', function(folderSlot, notes)
     exports['rsg-inventory']:AddItem(src, Config.CrimeFolderItem, 1, nil, info)
 
     TriggerClientEvent('ox_lib:notify', src, {
-        description = 'Case notes updated.',
+        description = 'Akte angepasst.',
         type        = 'success'
     })
 end)

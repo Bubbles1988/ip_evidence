@@ -127,15 +127,15 @@ RegisterNetEvent('ib_evidence:client:UseEvidenceBag', function()
     end
 
     if not nearestId then
-        lib.notify({ description = 'No evidence close enough to collect.', type = 'error' })
+        lib.notify({ description = 'Keine Beweise gefunden.', type = 'error' })
         return
     end
 
     -- Ask officer to tag the evidence
-    local input = lib.inputDialog('Tag evidence', {
-        { type = 'input',    label = 'Collected at (time/date)', required = false },
-        { type = 'input',    label = 'Location / Scene',         required = false },
-        { type = 'textarea', label = 'Custom Notes',             required = false },
+    local input = lib.inputDialog('Beweisdaten', {
+        { type = 'input',    label = 'Zeit/Datum', required = false },
+        { type = 'input',    label = 'Fundort',         required = false },
+        { type = 'textarea', label = 'Notizen',             required = false },
     })
 
     if not input then
@@ -180,7 +180,7 @@ RegisterNetEvent('ib_evidence:client:UseFingerprintKit', function()
         TriggerServerEvent('ib_evidence:server:RegisterFingerprintCard', closestSrc)
     else
         lib.notify({
-            description = 'No player close enough to fingerprint.',
+            description = 'Keine Finger nahbei.',
             type = 'error'
         })
     end
@@ -202,13 +202,13 @@ RegisterNetEvent('ib_evidence:client:OpenCaseViewer', function(item)
     lines[#lines+1] = ''
 
     if info.notes and info.notes ~= '' then
-        lines[#lines+1] = 'Notes:'
+        lines[#lines+1] = 'Notizen:'
         lines[#lines+1] = info.notes
         lines[#lines+1] = ''
     end
 
     if #suspects > 0 then
-        lines[#lines+1] = 'Suspects:'
+        lines[#lines+1] = 'Verdächtige:'
         for i, s in ipairs(suspects) do
             lines[#lines+1] = (('%d) %s (%s)  FP: %s'):format(
                 i,
@@ -220,13 +220,13 @@ RegisterNetEvent('ib_evidence:client:OpenCaseViewer', function(item)
         lines[#lines+1] = ''
     end
 
-        lines[#lines+1] = 'Evidence:'
+        lines[#lines+1] = 'Beweise:'
     if #evidence == 0 then
-        lines[#lines+1] = '- None attached.'
+        lines[#lines+1] = '- Keine.'
     else
         for i, ev in ipairs(evidence) do
             local label = ev.label or ev.type or 'evidence'
-            local loc   = ev.location or 'unknown location'
+            local loc   = ev.location or 'unbekannt'
             local when  = ev.collected_at or 'n/a'
             local by    = ev.collected_by_name or ev.collected_by or 'n/a'
             local extra = ''
@@ -245,7 +245,7 @@ RegisterNetEvent('ib_evidence:client:OpenCaseViewer', function(item)
     end
 
     lib.alertDialog({
-        header   = info.title or 'Case file',
+        header   = info.title or 'Akten',
         content  = table.concat(lines, '\n'),
         centered = true,
     })
@@ -255,8 +255,8 @@ end)
 -- Commands: create folder & attach evidence ----------------------
 
 RegisterCommand('case_new', function()
-    local input = lib.inputDialog('Create Case Folder', {
-        { type = 'input', label = 'Title', required = false }
+    local input = lib.inputDialog('Akte öffnen', {
+        { type = 'input', label = 'Titel', required = false }
     })
     if not input then return end
     TriggerServerEvent('ib_evidence:server:CreateCaseFolder', input[1] or '')
@@ -275,19 +275,19 @@ RegisterCommand('case_note', function()
 
     for slot, item in pairs(items) do
         if item and item.name == Config.CrimeFolderItem then
-            local label = (item.info and item.info.title) or ('Folder #' .. slot)
+            local label = (item.info and item.info.title) or ('Akte #' .. slot)
             folders[#folders+1] = { value = slot, label = label }
         end
     end
 
     if #folders == 0 then
-        lib.notify({ description = 'You have no crime folders.', type = 'error' })
+        lib.notify({ description = 'Ich habe keine Akten.', type = 'error' })
         return
     end
 
-    local input = lib.inputDialog('Edit case notes', {
-        { type = 'select',   label = 'Crime Folder', options = folders, required = true },
-        { type = 'textarea', label = 'Notes',        required = false },
+    local input = lib.inputDialog('Akte bearbeiten', {
+        { type = 'select',   label = 'Akte', options = folders, required = true },
+        { type = 'textarea', label = 'Notizen',        required = false },
     })
 
     if not input then return end
@@ -301,11 +301,11 @@ end, false)
 
 RegisterNetEvent('ib_evidence:client:AttachMenu', function(folders, evidence)
     if not folders or #folders == 0 then
-        lib.notify({ description = 'You have no crime folders.', type = 'error' })
+        lib.notify({ description = 'Ich hab keine Akten.', type = 'error' })
         return
     end
     if not evidence or #evidence == 0 then
-        lib.notify({ description = 'You have no loose evidence.', type = 'error' })
+        lib.notify({ description = 'Ich habe keine Beweise.', type = 'error' })
         return
     end
 
@@ -319,9 +319,9 @@ RegisterNetEvent('ib_evidence:client:AttachMenu', function(folders, evidence)
         evidenceOptions[#evidenceOptions+1] = { value = e.slot, label = e.label }
     end
 
-    local input = lib.inputDialog('Attach Evidence to Case', {
-        { type = 'select', label = 'Crime Folder', options = folderOptions, required = true },
-        { type = 'multi-select', label = 'Evidence Items', options = evidenceOptions, required = true },
+    local input = lib.inputDialog('Beweise ablegen', {
+        { type = 'select', label = 'Akte', options = folderOptions, required = true },
+        { type = 'multi-select', label = 'Beweise', options = evidenceOptions, required = true },
     })
 
     if not input then return end
@@ -330,7 +330,7 @@ RegisterNetEvent('ib_evidence:client:AttachMenu', function(folders, evidence)
     local evidenceSlots = input[2]
 
     if not folderSlot or not evidenceSlots or #evidenceSlots == 0 then
-        lib.notify({ description = 'Selection incomplete.', type = 'error' })
+        lib.notify({ description = 'Fehlerhaft.', type = 'error' })
         return
     end
 
