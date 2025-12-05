@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS `ib_evidence_markers` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `type` VARCHAR(32) NOT NULL,
+  `x` DOUBLE NOT NULL,
+  `y` DOUBLE NOT NULL,
+  `z` DOUBLE NOT NULL,
+  `created_by` VARCHAR(50) DEFAULT NULL,
+  `meta` LONGTEXT DEFAULT NULL,
+  `created_at` INT(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

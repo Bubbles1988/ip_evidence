@@ -1,4 +1,3 @@
-# ip_evidence
 ib_evidence - Evidence & Crime Folder system for RSG Core / rsg-lawman
 
 Version: 1.2.3
