@@ -131,7 +131,7 @@ RegisterNetEvent('ib_evidence:client:UseEvidenceBag', function()
         return
     end
 
-    -- Ask the officer to tag the evidence
+    -- Ask officer to tag the evidence
     local input = lib.inputDialog('Tag evidence', {
         { type = 'input',    label = 'Collected at (time/date)', required = false },
         { type = 'input',    label = 'Location / Scene',         required = false },
@@ -153,6 +153,7 @@ RegisterNetEvent('ib_evidence:client:UseEvidenceBag', function()
         notes        = notes,
     })
 end)
+
 
 
 RegisterNetEvent('ib_evidence:client:UseFingerprintKit', function()

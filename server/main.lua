@@ -341,26 +341,32 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
             description = 'Unknown evidence type.',
             type        = 'error'
         })
+        debugPrint(('Evidence #%s has unknown type %s'):format(tostring(markerId), tostring(ev.type)))
         return
     end
 
-    details         = details or {}
-    local charinfo  = Player.PlayerData.charinfo or {}
+    details = type(details) == 'table' and details or {}
+
+    local charinfo    = Player.PlayerData.charinfo or {}
     local officerName = ((charinfo.firstname or '') ..
         ' ' ..
         (charinfo.lastname or '')):gsub('^%s+', '')
 
-    local meta        = ev.meta or {}
+    local meta = ev.meta or {}
+
+    -- Weapon label (from Config.WeaponLabels) if available
     local weaponLabel = meta.weapon_label
     if not weaponLabel and meta.weapon and Config.WeaponLabels and Config.WeaponLabels[meta.weapon] then
         weaponLabel = Config.WeaponLabels[meta.weapon]
     end
 
+    -- Scene / location text
     local scene = details.scene
     if not scene or scene == '' then
         scene = meta.location or ('%.1f / %.1f'):format(ev.coords.x, ev.coords.y)
     end
 
+    -- Collected at (text shown to officers)
     local collectedAtText = details.collected_at
     if not collectedAtText or collectedAtText == '' then
         collectedAtText = os.date('%Y-%m-%d %H:%M')
@@ -368,6 +374,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
 
     local notes = details.notes or ''
 
+    -- Human-readable base label for the item
     local baseLabel
     if ev.type == 'casing' then
         baseLabel = (weaponLabel and (weaponLabel .. ' casing')) or 'Casing'
@@ -379,15 +386,15 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
         baseLabel = ev.type
     end
 
+    -- User-facing metadata
     local info = {
-        -- user-facing
         label        = baseLabel,
         scene        = scene,
         collected_at = collectedAtText,
         notes        = notes,
         weapon       = weaponLabel,
 
-        -- technical/internal
+        -- Technical/internal metadata (used for crime folder, not for tooltip)
         internal = {
             type              = ev.type,
             created_by        = ev.createdBy,
@@ -403,7 +410,12 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
 
     exports['rsg-inventory']:AddItem(src, itemName, 1, nil, info)
     RemoveEvidenceMarker(markerId)
+
+    debugPrint(('Player %d collected evidence #%s (%s) -> item %s'):format(
+        src, tostring(markerId), tostring(ev.type), itemName
+    ))
 end)
+
 
 -- Fingerprint kit: create fingerprint card -----------------------
 
