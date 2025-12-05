@@ -7,8 +7,8 @@ end)
 -- In-memory evidence markers ------------------------------------
 
 local EvidenceMarkers = {}   -- [id] = { id, type, coords = vector3, createdBy, meta = {}, createdAt }
-local PlayerCasings = {}     -- [citizenid] = count
-local TotalCasings = 0
+local PlayerCasings  = {}   -- [citizenid] = count
+local TotalCasings   = 0
 
 local function debugPrint(msg)
     if Config.Debug then
@@ -28,10 +28,12 @@ local function GenerateFingerprintCode(citizenid)
     if not citizenid or citizenid == '' then
         return ('FP-%03d-%03d'):format(math.random(0, 999), math.random(0, 999))
     end
+
     local sum = 0
     for i = 1, #citizenid do
         sum = sum + string.byte(citizenid, i)
     end
+
     local a = sum % 1000
     local b = (sum * 7) % 1000
     return ('FP-%03d-%03d'):format(a, b)
@@ -54,13 +56,12 @@ local function RemoveEvidenceMarker(id)
 
     EvidenceMarkers[id] = nil
     TriggerClientEvent('ib_evidence:client:RemoveMarker', -1, id)
-
     MySQL.update('DELETE FROM ib_evidence_markers WHERE id = ?', { id })
 end
 
 local function NewEvidenceMarker(evType, coords, citizenid, meta)
     local createdAt = os.time()
-    local metaJson = meta and json.encode(meta) or '[]'
+    local metaJson  = meta and json.encode(meta) or '[]'
 
     local id = MySQL.insert.await(
         'INSERT INTO ib_evidence_markers (`type`,`x`,`y`,`z`,`created_by`,`meta`,`created_at`) VALUES (?,?,?,?,?,?,?)',
@@ -73,11 +74,11 @@ local function NewEvidenceMarker(evType, coords, citizenid, meta)
     end
 
     EvidenceMarkers[id] = {
-        id = id,
-        type = evType,
-        coords = coords,
+        id        = id,
+        type      = evType,
+        coords    = coords,
         createdBy = citizenid,
-        meta = meta or {},
+        meta      = meta or {},
         createdAt = createdAt,
     }
 
@@ -88,7 +89,7 @@ local function NewEvidenceMarker(evType, coords, citizenid, meta)
     if evType == 'casing' and citizenid then
         PlayerCasings[citizenid] = PlayerCasings[citizenid] or 0
         PlayerCasings[citizenid] = PlayerCasings[citizenid] + 1
-        TotalCasings = TotalCasings + 1
+        TotalCasings             = TotalCasings + 1
     end
 
     return id
@@ -102,9 +103,11 @@ local function LoadEvidenceFromDB()
     end
 
     local now = os.time()
+
     for _, row in ipairs(rows) do
         local createdAt = row.created_at or now
-        local expired = false
+        local expired   = false
+
         if Config.EvidenceLifetime and Config.EvidenceLifetime > 0 then
             if (now - createdAt) > Config.EvidenceLifetime then
                 expired = true
@@ -124,18 +127,18 @@ local function LoadEvidenceFromDB()
             end
 
             EvidenceMarkers[row.id] = {
-                id = row.id,
-                type = row.type,
-                coords = v,
+                id        = row.id,
+                type      = row.type,
+                coords    = v,
                 createdBy = row.created_by,
-                meta = meta,
+                meta      = meta,
                 createdAt = createdAt,
             }
 
             if row.type == 'casing' and row.created_by then
                 PlayerCasings[row.created_by] = PlayerCasings[row.created_by] or 0
                 PlayerCasings[row.created_by] = PlayerCasings[row.created_by] + 1
-                TotalCasings = TotalCasings + 1
+                TotalCasings                  = TotalCasings + 1
             end
         end
     end
@@ -161,30 +164,30 @@ CreateThread(function()
     end
 end)
 
--- Exports for other resources (doors, crates, etc.) -------------
+-- Exports for other resources (doors, crates, etc.) --------------
 
 exports('CreateFingerprintAtCoords', function(src, coords, locationLabel)
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local citizenid = Player.PlayerData.citizenid
-    local charinfo = Player.PlayerData.charinfo or {}
-    local fullname = ((charinfo.firstname or '') .. ' ' .. (charinfo.lastname or '')):gsub('^%s+', '')
+    local charinfo  = Player.PlayerData.charinfo or {}
+    local fullname  = ((charinfo.firstname or '') ..
+        ' ' ..
+        (charinfo.lastname or '')):gsub('^%s+', '')
 
     local fpCode = GenerateFingerprintCode(citizenid)
 
     local meta = {
-        fp_code = fpCode,
-        location = locationLabel or 'Unknown surface',
-        suspect_cid = citizenid,
+        fp_code      = fpCode,
+        location     = locationLabel or 'Unknown surface',
+        suspect_cid  = citizenid,
         suspect_name = fullname ~= '' and fullname or nil,
     }
 
-    local v = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
+    local v  = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
     local id = NewEvidenceMarker('fingerprint', v, citizenid, meta)
     if not id then return end
-
-
 end)
 
 -- Shooting: attempt to create casing -----------------------------
@@ -193,48 +196,33 @@ RegisterNetEvent('ib_evidence:server:TryCreateCasing', function(weaponHash, coor
     local src = source
     if not src then return end
 
-    if math.random() > Config.CasingDropChance then
-        return
-    end
-
-    if not WeaponUsesAmmo(weaponHash) then
-        return
-    end
+    if math.random() > Config.CasingDropChance then return end
+    if not WeaponUsesAmmo(weaponHash) then return end
 
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local citizenid = Player.PlayerData.citizenid
     PlayerCasings[citizenid] = PlayerCasings[citizenid] or 0
-
-    if PlayerCasings[citizenid] >= Config.MaxCasingsPerPlayer then
-        return
-    end
-
-    if TotalCasings >= Config.MaxCasingsGlobal then
-        return
-    end
+    if PlayerCasings[citizenid] >= Config.MaxCasingsPerPlayer then return end
+    if TotalCasings >= Config.MaxCasingsGlobal then return end
 
     local v = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
+
     local meta = {
         weapon   = weaponHash,
         location = ('%.1f / %.1f'):format(v.x, v.y),
     }
 
-    -- readable weapon label for later use
-    local weaponLabel
-        if Config.WeaponLabels and Config.WeaponLabels[weaponHash] then
-            weaponLabel = Config.WeaponLabels[weaponHash]
-        end
-meta.weapon_label = weaponLabel or tostring(weaponHash)
-
-local id = NewEvidenceMarker('casing', v, citizenid, meta)
-if not id then return end
-
+    -- readable weapon label for later
+    if Config.WeaponLabels and Config.WeaponLabels[weaponHash] then
+        meta.weapon_label = Config.WeaponLabels[weaponHash]
+    else
+        meta.weapon_label = tostring(weaponHash)
+    end
 
     local id = NewEvidenceMarker('casing', v, citizenid, meta)
     if not id then return end
-
 end)
 
 -- Blood droplets -------------------------------------------------
@@ -242,11 +230,12 @@ end)
 RegisterNetEvent('ib_evidence:server:CreateBloodDrop', function(coords)
     local src = source
     if not src then return end
+
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local citizenid = Player.PlayerData.citizenid
-    local v = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
+    local v         = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
 
     local meta = {
         location = ('%.1f / %.1f'):format(v.x, v.y),
@@ -254,13 +243,12 @@ RegisterNetEvent('ib_evidence:server:CreateBloodDrop', function(coords)
 
     local id = NewEvidenceMarker('blood', v, citizenid, meta)
     if not id then return end
-
 end)
 
 -- Forensics scan -------------------------------------------------
 
 RegisterNetEvent('ib_evidence:server:ScanArea', function(coords)
-    local src = source
+    local src    = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
@@ -274,24 +262,41 @@ RegisterNetEvent('ib_evidence:server:ScanArea', function(coords)
     if not hasKit then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'You need a forensics kit.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
 
     local v = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
     local r = Config.ForensicsRange
+
     local results = {}
 
     for id, ev in pairs(EvidenceMarkers) do
         local dist = #(v - ev.coords)
         if dist <= r then
+            local label = 'Evidence'
+
+            if ev.type == 'casing' then
+                local meta = ev.meta or {}
+                if meta.weapon_label then
+                    label = meta.weapon_label .. ' casing'
+                else
+                    label = 'Casing'
+                end
+            elseif ev.type == 'blood' then
+                label = 'Blood'
+            elseif ev.type == 'fingerprint' then
+                label = 'Fingerprint'
+            end
+
             results[#results+1] = {
-                id = id,
-                type = ev.type,
-                x = ev.coords.x,
-                y = ev.coords.y,
-                z = ev.coords.z,
+                id    = id,
+                type  = ev.type,
+                x     = ev.coords.x,
+                y     = ev.coords.y,
+                z     = ev.coords.z,
+                label = label,
             }
         end
     end
@@ -301,8 +306,8 @@ end)
 
 -- Collect evidence with evidence_bag -----------------------------
 
-RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
-    local src = source
+RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, details)
+    local src    = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
@@ -316,7 +321,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
     if not hasBag then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'You need an evidence bag.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
@@ -325,7 +330,7 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
     if not ev then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'Evidence not found.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
@@ -334,28 +339,26 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
     if not itemName then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'Unknown evidence type.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
 
-    local charinfo = Player.PlayerData.charinfo or {}
-    local officerName = ((charinfo.firstname or '') .. ' ' .. (charinfo.lastname or '')):gsub('^%s+', '')
-
-        local charinfo    = Player.PlayerData.charinfo or {}
+    details         = details or {}
+    local charinfo  = Player.PlayerData.charinfo or {}
     local officerName = ((charinfo.firstname or '') ..
         ' ' ..
         (charinfo.lastname or '')):gsub('^%s+', '')
 
-    -- weapon label, if present
-    local weaponLabel = ev.meta.weapon_label
-    if not weaponLabel and ev.meta.weapon and Config.WeaponLabels and Config.WeaponLabels[ev.meta.weapon] then
-        weaponLabel = Config.WeaponLabels[ev.meta.weapon]
+    local meta        = ev.meta or {}
+    local weaponLabel = meta.weapon_label
+    if not weaponLabel and meta.weapon and Config.WeaponLabels and Config.WeaponLabels[meta.weapon] then
+        weaponLabel = Config.WeaponLabels[meta.weapon]
     end
 
     local scene = details.scene
     if not scene or scene == '' then
-        scene = ev.meta.location or ('%.1f / %.1f'):format(ev.coords.x, ev.coords.y)
+        scene = meta.location or ('%.1f / %.1f'):format(ev.coords.x, ev.coords.y)
     end
 
     local collectedAtText = details.collected_at
@@ -365,27 +368,36 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
 
     local notes = details.notes or ''
 
-    -- What the officer actually sees in the item tooltip
+    local baseLabel
+    if ev.type == 'casing' then
+        baseLabel = (weaponLabel and (weaponLabel .. ' casing')) or 'Casing'
+    elseif ev.type == 'blood' then
+        baseLabel = 'Blood evidence'
+    elseif ev.type == 'fingerprint' then
+        baseLabel = 'Fingerprint trace'
+    else
+        baseLabel = ev.type
+    end
+
     local info = {
-        -- human readable label
-        label        = (ev.type == 'casing' and (weaponLabel and (weaponLabel .. ' casing') or 'Casing'))
-                        or ev.type,
+        -- user-facing
+        label        = baseLabel,
         scene        = scene,
         collected_at = collectedAtText,
         notes        = notes,
-        weapon       = weaponLabel,   -- e.g. "Cattleman Revolver"
+        weapon       = weaponLabel,
 
-        -- INTERNAL: technical fields, so we don't spam item description
+        -- technical/internal
         internal = {
             type              = ev.type,
             created_by        = ev.createdBy,
-            location_raw      = ev.meta.location,
+            location_raw      = meta.location,
             collected_by      = Player.PlayerData.citizenid,
             collected_by_name = officerName,
             collected_at_ts   = os.time(),
-            weapon_hash       = ev.meta.weapon,
-            fp_code           = ev.meta.fp_code,
-            dna_code          = ev.meta.dna_code,
+            weapon_hash       = meta.weapon,
+            fp_code           = meta.fp_code,
+            dna_code          = meta.dna_code,
         }
     }
 
@@ -393,29 +405,21 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
     RemoveEvidenceMarker(markerId)
 end)
 
-
-    exports['rsg-inventory']:AddItem(src, itemName, 1, nil, info)
-
-    RemoveEvidenceMarker(markerId)
-end)
-
 -- Fingerprint kit: create fingerprint card -----------------------
 
 RegisterNetEvent('ib_evidence:server:RegisterFingerprintCard', function(targetId)
-    local src = source
+    local src     = source
     local Officer = RSGCore.Functions.GetPlayer(src)
     if not Officer then return end
 
     local job = Officer.PlayerData.job and Officer.PlayerData.job.name
-    if not isLawJob(job) then
-        return
-    end
+    if not isLawJob(job) then return end
 
     local hasKit = exports['rsg-inventory']:HasItem(src, Config.FingerprintKitItem, 1)
     if not hasKit then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'You need a fingerprint kit.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
@@ -424,86 +428,87 @@ RegisterNetEvent('ib_evidence:server:RegisterFingerprintCard', function(targetId
     if not Target then
         TriggerClientEvent('ox_lib:notify', src, {
             description = 'Target not found.',
-            type = 'error'
+            type        = 'error'
         })
         return
     end
 
-    local tCid = Target.PlayerData.citizenid
+    local tCid  = Target.PlayerData.citizenid
     local tInfo = Target.PlayerData.charinfo or {}
-    local tName = ((tInfo.firstname or '') .. ' ' .. (tInfo.lastname or '')):gsub('^%s+', '')
+    local tName = ((tInfo.firstname or '') ..
+        ' ' ..
+        (tInfo.lastname or '')):gsub('^%s+', '')
 
     local fpCode = GenerateFingerprintCode(tCid)
 
     local officerInfo = Officer.PlayerData.charinfo or {}
-    local officerName = ((officerInfo.firstname or '') .. ' ' .. (officerInfo.lastname or '')):gsub('^%s+', '')
+    local officerName = ((officerInfo.firstname or '') ..
+        ' ' ..
+        (officerInfo.lastname or '')):gsub('^%s+', '')
 
     local info = {
-        suspect_cid = tCid,
-        suspect_name = tName,
-        fp_code = fpCode,
-        taken_at = os.time(),
-        taken_by = Officer.PlayerData.citizenid,
+        suspect_cid   = tCid,
+        suspect_name  = tName,
+        fp_code       = fpCode,
+        taken_at      = os.time(),
+        taken_by      = Officer.PlayerData.citizenid,
         taken_by_name = officerName,
-        notes = '',
+        notes         = '',
     }
 
     exports['rsg-inventory']:AddItem(src, Config.FingerprintCardItem, 1, nil, info)
 
     TriggerClientEvent('ox_lib:notify', src, {
         description = ('Fingerprint taken: %s'):format(fpCode),
-        type = 'success'
+        type        = 'success'
     })
 end)
 
 -- Crime folders --------------------------------------------------
 
 RegisterNetEvent('ib_evidence:server:CreateCaseFolder', function(title)
-    local src = source
+    local src    = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local job = Player.PlayerData.job and Player.PlayerData.job.name
-    if not isLawJob(job) then
-        return
-    end
+    if not isLawJob(job) then return end
 
-    local cid = Player.PlayerData.citizenid
-    local caseId = ('%s-%03d'):format(os.date('%y%m%d'), math.random(1, 999))
-
+    local cid     = Player.PlayerData.citizenid
+    local caseId  = ('%s-%03d'):format(os.date('%y%m%d'), math.random(1, 999))
     local charinfo = Player.PlayerData.charinfo or {}
-    local officerName = ((charinfo.firstname or '') .. ' ' .. (charinfo.lastname or '')):gsub('^%s+', '')
+    local officerName = ((charinfo.firstname or '') ..
+        ' ' ..
+        (charinfo.lastname or '')):gsub('^%s+', '')
 
     local info = {
-        case_id = caseId,
-        title = title ~= '' and title or ('Case ' .. caseId),
-        lead_officer = cid,
-        lead_officer_name = officerName,
-        created_at = os.time(),
-        notes = '',
-        evidence = {},
-        suspects = {},
+        case_id          = caseId,
+        title            = title ~= '' and title or ('Case ' .. caseId),
+        lead_officer     = cid,
+        lead_officer_name= officerName,
+        created_at       = os.date('%Y-%m-%d %H:%M'),
+        notes            = '',
+        evidence         = {},
+        suspects         = {},
     }
 
     exports['rsg-inventory']:AddItem(src, Config.CrimeFolderItem, 1, nil, info)
 
     TriggerClientEvent('ox_lib:notify', src, {
         description = ('New case folder created: %s'):format(info.title),
-        type = 'success'
+        type        = 'success'
     })
 end)
 
 RegisterNetEvent('ib_evidence:server:OpenAttachMenu', function()
-    local src = source
+    local src    = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local job = Player.PlayerData.job and Player.PlayerData.job.name
-    if not isLawJob(job) then
-        return
-    end
+    if not isLawJob(job) then return end
 
-    local folders = {}
+    local folders  = {}
     local evidence = {}
 
     local items = Player.PlayerData.items or {}
@@ -521,7 +526,7 @@ RegisterNetEvent('ib_evidence:server:OpenAttachMenu', function()
             evidence[#evidence+1] = {
                 slot = slot,
                 label = label,
-                name = item.name,
+                name  = item.name,
             }
         end
     end
@@ -530,19 +535,15 @@ RegisterNetEvent('ib_evidence:server:OpenAttachMenu', function()
 end)
 
 RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evidenceSlots)
-    local src = source
+    local src    = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
     local job = Player.PlayerData.job and Player.PlayerData.job.name
-    if not isLawJob(job) then
-        return
-    end
+    if not isLawJob(job) then return end
 
     local folderItem = exports['rsg-inventory']:GetItemBySlot(src, folderSlot)
-    if not folderItem or folderItem.name ~= Config.CrimeFolderItem then
-        return
-    end
+    if not folderItem or folderItem.name ~= Config.CrimeFolderItem then return end
 
     local folderInfo = folderItem.info or {}
     folderInfo.evidence = folderInfo.evidence or {}
@@ -553,33 +554,33 @@ RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evide
     for _, slot in ipairs(evidenceSlots) do
         slot = tonumber(slot)
         local item = items[slot]
+
         if item then
             local info = item.info or {}
 
             if item.name == Config.FingerprintCardItem then
                 folderInfo.suspects[#folderInfo.suspects+1] = {
-                    suspect_cid = info.suspect_cid,
+                    suspect_cid  = info.suspect_cid,
                     suspect_name = info.suspect_name,
-                    fp_code = info.fp_code,
-                    notes = info.notes or '',
+                    fp_code      = info.fp_code,
+                    notes        = info.notes or '',
                 }
-                    else
-            local internal = info.internal or {}
+            else
+                local internal = info.internal or {}
 
-            folderInfo.evidence[#folderInfo.evidence+1] = {
-                label             = info.label or info.type or item.name,
-                type              = internal.type or info.type or item.name,
-                location          = info.scene or info.location or internal.location_raw or 'Unknown',
-                collected_at      = info.collected_at or internal.collected_at_ts or 'n/a',
-                collected_by      = internal.collected_by,
-                collected_by_name = internal.collected_by_name,
-                fp_code           = internal.fp_code or info.fp_code,
-                dna_code          = internal.dna_code or info.dna_code,
-                weapon            = info.weapon or internal.weapon_hash,
-                custom_notes      = info.notes or internal.custom_notes or '',
-            }
-        end
-
+                folderInfo.evidence[#folderInfo.evidence+1] = {
+                    label             = info.label or info.type or item.name,
+                    type              = internal.type or info.type or item.name,
+                    location          = info.scene or info.location or internal.location_raw or 'Unknown',
+                    collected_at      = info.collected_at or internal.collected_at_ts or 'n/a',
+                    collected_by      = internal.collected_by,
+                    collected_by_name = internal.collected_by_name,
+                    fp_code           = internal.fp_code,
+                    dna_code          = internal.dna_code,
+                    weapon            = info.weapon or internal.weapon_hash,
+                    custom_notes      = info.notes or internal.custom_notes or '',
+                }
+            end
 
             exports['rsg-inventory']:RemoveItem(src, item.name, 1, slot)
         end
@@ -590,9 +591,11 @@ RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evide
 
     TriggerClientEvent('ox_lib:notify', src, {
         description = ('Evidence attached to case %s'):format(folderInfo.case_id or ''),
-        type = 'success'
+        type        = 'success'
     })
 end)
+
+-- Case notes -----------------------------------------------------
 
 RegisterNetEvent('ib_evidence:server:SetCaseNotes', function(folderSlot, notes)
     local src    = source
@@ -615,7 +618,7 @@ RegisterNetEvent('ib_evidence:server:SetCaseNotes', function(folderSlot, notes)
 
     TriggerClientEvent('ox_lib:notify', src, {
         description = 'Case notes updated.',
-        type = 'success'
+        type        = 'success'
     })
 end)
 
