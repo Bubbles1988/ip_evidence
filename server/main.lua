@@ -217,9 +217,20 @@ RegisterNetEvent('ib_evidence:server:TryCreateCasing', function(weaponHash, coor
 
     local v = vector3(coords.x + 0.0, coords.y + 0.0, coords.z + 0.0)
     local meta = {
-        weapon = weaponHash,
+        weapon   = weaponHash,
         location = ('%.1f / %.1f'):format(v.x, v.y),
     }
+
+    -- readable weapon label for later use
+    local weaponLabel
+        if Config.WeaponLabels and Config.WeaponLabels[weaponHash] then
+            weaponLabel = Config.WeaponLabels[weaponHash]
+        end
+meta.weapon_label = weaponLabel or tostring(weaponHash)
+
+local id = NewEvidenceMarker('casing', v, citizenid, meta)
+if not id then return end
+
 
     local id = NewEvidenceMarker('casing', v, citizenid, meta)
     if not id then return end
@@ -331,18 +342,57 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId)
     local charinfo = Player.PlayerData.charinfo or {}
     local officerName = ((charinfo.firstname or '') .. ' ' .. (charinfo.lastname or '')):gsub('^%s+', '')
 
+        local charinfo    = Player.PlayerData.charinfo or {}
+    local officerName = ((charinfo.firstname or '') ..
+        ' ' ..
+        (charinfo.lastname or '')):gsub('^%s+', '')
+
+    -- weapon label, if present
+    local weaponLabel = ev.meta.weapon_label
+    if not weaponLabel and ev.meta.weapon and Config.WeaponLabels and Config.WeaponLabels[ev.meta.weapon] then
+        weaponLabel = Config.WeaponLabels[ev.meta.weapon]
+    end
+
+    local scene = details.scene
+    if not scene or scene == '' then
+        scene = ev.meta.location or ('%.1f / %.1f'):format(ev.coords.x, ev.coords.y)
+    end
+
+    local collectedAtText = details.collected_at
+    if not collectedAtText or collectedAtText == '' then
+        collectedAtText = os.date('%Y-%m-%d %H:%M')
+    end
+
+    local notes = details.notes or ''
+
+    -- What the officer actually sees in the item tooltip
     local info = {
-        type = ev.type,
-        location = ev.meta.location or ('%.1f / %.1f'):format(ev.coords.x, ev.coords.y),
-        created_by = ev.createdBy,
-        collected_by = Player.PlayerData.citizenid,
-        collected_by_name = officerName,
-        collected_at = os.time(),
-        weapon = ev.meta.weapon,
-        fp_code = ev.meta.fp_code,
-        dna_code = ev.meta.dna_code,
-        custom_notes = '',
+        -- human readable label
+        label        = (ev.type == 'casing' and (weaponLabel and (weaponLabel .. ' casing') or 'Casing'))
+                        or ev.type,
+        scene        = scene,
+        collected_at = collectedAtText,
+        notes        = notes,
+        weapon       = weaponLabel,   -- e.g. "Cattleman Revolver"
+
+        -- INTERNAL: technical fields, so we don't spam item description
+        internal = {
+            type              = ev.type,
+            created_by        = ev.createdBy,
+            location_raw      = ev.meta.location,
+            collected_by      = Player.PlayerData.citizenid,
+            collected_by_name = officerName,
+            collected_at_ts   = os.time(),
+            weapon_hash       = ev.meta.weapon,
+            fp_code           = ev.meta.fp_code,
+            dna_code          = ev.meta.dna_code,
+        }
     }
+
+    exports['rsg-inventory']:AddItem(src, itemName, 1, nil, info)
+    RemoveEvidenceMarker(markerId)
+end)
+
 
     exports['rsg-inventory']:AddItem(src, itemName, 1, nil, info)
 
@@ -513,19 +563,23 @@ RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evide
                     fp_code = info.fp_code,
                     notes = info.notes or '',
                 }
-            else
-                folderInfo.evidence[#folderInfo.evidence+1] = {
-                    type = info.type or item.name,
-                    location = info.location or 'Unknown',
-                    collected_at = info.collected_at or os.time(),
-                    collected_by = info.collected_by,
-                    collected_by_name = info.collected_by_name,
-                    fp_code = info.fp_code,
-                    dna_code = info.dna_code,
-                    weapon = info.weapon,
-                    custom_notes = info.custom_notes or '',
-                }
-            end
+                    else
+            local internal = info.internal or {}
+
+            folderInfo.evidence[#folderInfo.evidence+1] = {
+                label             = info.label or info.type or item.name,
+                type              = internal.type or info.type or item.name,
+                location          = info.scene or info.location or internal.location_raw or 'Unknown',
+                collected_at      = info.collected_at or internal.collected_at_ts or 'n/a',
+                collected_by      = internal.collected_by,
+                collected_by_name = internal.collected_by_name,
+                fp_code           = internal.fp_code or info.fp_code,
+                dna_code          = internal.dna_code or info.dna_code,
+                weapon            = info.weapon or internal.weapon_hash,
+                custom_notes      = info.notes or internal.custom_notes or '',
+            }
+        end
+
 
             exports['rsg-inventory']:RemoveItem(src, item.name, 1, slot)
         end
@@ -536,6 +590,31 @@ RegisterNetEvent('ib_evidence:server:AttachEvidence', function(folderSlot, evide
 
     TriggerClientEvent('ox_lib:notify', src, {
         description = ('Evidence attached to case %s'):format(folderInfo.case_id or ''),
+        type = 'success'
+    })
+end)
+
+RegisterNetEvent('ib_evidence:server:SetCaseNotes', function(folderSlot, notes)
+    local src    = source
+    local Player = RSGCore.Functions.GetPlayer(src)
+    if not Player then return end
+
+    local job = Player.PlayerData.job and Player.PlayerData.job.name
+    if not isLawJob(job) then return end
+
+    local folderItem = exports['rsg-inventory']:GetItemBySlot(src, folderSlot)
+    if not folderItem or folderItem.name ~= Config.CrimeFolderItem then
+        return
+    end
+
+    local info = folderItem.info or {}
+    info.notes = notes or ''
+
+    exports['rsg-inventory']:RemoveItem(src, Config.CrimeFolderItem, 1, folderSlot)
+    exports['rsg-inventory']:AddItem(src, Config.CrimeFolderItem, 1, nil, info)
+
+    TriggerClientEvent('ox_lib:notify', src, {
+        description = 'Case notes updated.',
         type = 'success'
     })
 end)

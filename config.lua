@@ -24,6 +24,7 @@ Config.WeaponLabels = {
 }
 
 
+
 -- Fingerprints / Blood
 Config.BloodOnDamage = true
 Config.BloodMinHealthLoss = 5           -- health drop required to spawn blood

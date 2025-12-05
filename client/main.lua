@@ -112,7 +112,7 @@ RegisterNetEvent('ib_evidence:client:UseForensicsKit', function()
 end)
 
 RegisterNetEvent('ib_evidence:client:UseEvidenceBag', function()
-    local ped = PlayerPedId()
+    local ped     = PlayerPedId()
     local pCoords = GetEntityCoords(ped)
 
     local nearestId, nearestDist
@@ -121,17 +121,39 @@ RegisterNetEvent('ib_evidence:client:UseEvidenceBag', function()
     for id, ev in pairs(VisibleMarkers) do
         local dist = #(pCoords - ev.coords)
         if dist < nearestDist then
-            nearestId = id
+            nearestId  = id
             nearestDist = dist
         end
     end
 
-    if nearestId then
-        TriggerServerEvent('ib_evidence:server:CollectEvidence', nearestId)
-    else
+    if not nearestId then
         lib.notify({ description = 'No evidence close enough to collect.', type = 'error' })
+        return
     end
+
+    -- Ask the officer to tag the evidence
+    local input = lib.inputDialog('Tag evidence', {
+        { type = 'input',    label = 'Collected at (time/date)', required = false },
+        { type = 'input',    label = 'Location / Scene',         required = false },
+        { type = 'textarea', label = 'Custom Notes',             required = false },
+    })
+
+    if not input then
+        -- dialog cancelled
+        return
+    end
+
+    local collectedAt = input[1] or ''
+    local scene       = input[2] or ''
+    local notes       = input[3] or ''
+
+    TriggerServerEvent('ib_evidence:server:CollectEvidence', nearestId, {
+        collected_at = collectedAt,
+        scene        = scene,
+        notes        = notes,
+    })
 end)
+
 
 RegisterNetEvent('ib_evidence:client:UseFingerprintKit', function()
     local ped = PlayerPedId()
@@ -197,23 +219,22 @@ RegisterNetEvent('ib_evidence:client:OpenCaseViewer', function(item)
         lines[#lines+1] = ''
     end
 
-    lines[#lines+1] = 'Evidence:'
+        lines[#lines+1] = 'Evidence:'
     if #evidence == 0 then
         lines[#lines+1] = '- None attached.'
     else
         for i, ev in ipairs(evidence) do
-            local label = ev.type or 'evidence'
+            local label = ev.label or ev.type or 'evidence'
             local loc   = ev.location or 'unknown location'
-            -- collected_at is printed raw as well
             local when  = ev.collected_at or 'n/a'
             local by    = ev.collected_by_name or ev.collected_by or 'n/a'
             local extra = ''
 
-            if ev.fp_code then
-                extra = extra .. (' FP:%s'):format(ev.fp_code)
-            end
             if ev.weapon then
                 extra = extra .. (' WEAPON:%s'):format(ev.weapon)
+            end
+            if ev.custom_notes and ev.custom_notes ~= '' then
+                extra = extra .. (' | NOTES:%s'):format(ev.custom_notes)
             end
 
             lines[#lines+1] = (('%d) [%s] %s (by %s at %s)%s'):format(
@@ -243,6 +264,39 @@ end, false)
 RegisterCommand('case_attach', function()
     TriggerServerEvent('ib_evidence:server:OpenAttachMenu')
 end, false)
+
+RegisterCommand('case_note', function()
+    local player = RSGCore.Functions.GetPlayerData()
+    if not player then return end
+
+    local items   = player.items or {}
+    local folders = {}
+
+    for slot, item in pairs(items) do
+        if item and item.name == Config.CrimeFolderItem then
+            local label = (item.info and item.info.title) or ('Folder #' .. slot)
+            folders[#folders+1] = { value = slot, label = label }
+        end
+    end
+
+    if #folders == 0 then
+        lib.notify({ description = 'You have no crime folders.', type = 'error' })
+        return
+    end
+
+    local input = lib.inputDialog('Edit case notes', {
+        { type = 'select',   label = 'Crime Folder', options = folders, required = true },
+        { type = 'textarea', label = 'Notes',        required = false },
+    })
+
+    if not input then return end
+
+    local folderSlot = input[1]
+    local notes      = input[2] or ''
+
+    TriggerServerEvent('ib_evidence:server:SetCaseNotes', folderSlot, notes)
+end, false)
+
 
 RegisterNetEvent('ib_evidence:client:AttachMenu', function(folders, evidence)
     if not folders or #folders == 0 then
