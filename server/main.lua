@@ -416,6 +416,34 @@ RegisterNetEvent('ib_evidence:server:CollectEvidence', function(markerId, detail
     ))
 end)
 
+RegisterNetEvent('ib_evidence:server:CleanEvidence', function(markerId)
+    local src    = source
+    local Player = RSGCore.Functions.GetPlayer(src)
+    if not Player then return end
+
+    local job = Player.PlayerData.job and Player.PlayerData.job.name
+    if not isLawJob(job) then
+        debugPrint(('Player %d tried to clean evidence without law job (%s)'):format(src, tostring(job)))
+        return
+    end
+
+    local ev = EvidenceMarkers[markerId]
+    if not ev then
+        TriggerClientEvent('ox_lib:notify', src, {
+            description = 'Beweis nicht gefunden.',
+            type        = 'error'
+        })
+        return
+    end
+
+    RemoveEvidenceMarker(markerId)
+
+    TriggerClientEvent('ox_lib:notify', src, {
+        description = 'Beweis entfernt.',
+        type        = 'success'
+    })
+end)
+
 
 -- Fingerprint kit: create fingerprint card -----------------------
 

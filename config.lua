@@ -23,7 +23,8 @@ Config.WeaponLabels = {
     -- add all weapons you use
 }
 
-
+-- Key used for evidence prompts (RSGCore.Shared.Keybinds)
+Config.EvidencePromptKey = 'E'  -- or 'J', etc. Your choice.
 
 -- Fingerprints / Blood
 Config.BloodOnDamage = true
